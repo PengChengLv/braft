@@ -528,6 +528,7 @@ int Replicator::_fill_common_fields(AppendEntriesRequest* request,
                                     int64_t prev_log_index,
                                     bool is_heartbeat) {
     const int64_t prev_log_term = _options.log_manager->get_term(prev_log_index);
+    // 说明该本地log中没有replicator（peer）所需要的entry，本地log中entry被compacted了
     if (prev_log_term == 0 && prev_log_index != 0) {
         if (!is_heartbeat) {
             CHECK_LT(prev_log_index, _options.log_manager->first_log_index());
@@ -661,12 +662,14 @@ void Replicator::_send_entries() {
     int prepare_entry_rc = 0;
     CHECK_GT(max_entries_size, 0);
     for (int i = 0; i < max_entries_size; ++i) {
+        // _prepare_entry主要就是从log manager 中获取entry
         prepare_entry_rc = _prepare_entry(i, &em, &cntl->request_attachment());
         if (prepare_entry_rc != 0) {
             break;
         }
         request->add_entries()->Swap(&em);
     }
+    // entries为空时，可以wait_more_entries
     if (request->entries_size() == 0) {
         // _id is unlock in _wait_more
         if (_next_index < _options.log_manager->first_log_index()) {

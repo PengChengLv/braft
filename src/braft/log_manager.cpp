@@ -331,6 +331,8 @@ void LogManager::unsafe_truncate_suffix(const int64_t last_index_kept) {
     CHECK_EQ(0, bthread::execution_queue_execute(_disk_queue, tsc));
 }
 
+// 1. release掉 entries中没必要apply
+// 2. 删除本地的log
 int LogManager::check_and_resolve_conflict(
             std::vector<LogEntry*> *entries, StableClosure* done) {
     AsyncClosureGuard done_guard(done);   
@@ -376,6 +378,10 @@ int LogManager::check_and_resolve_conflict(
                     break;
                 }
             }
+            // conflicting_index为零时，会有两种情况
+            // 1. 正常情况，local的term为0
+            // 2. 确实conflicting
+
             if (conflicting_index != entries->size()) {
                 if ((*entries)[conflicting_index]->id.index <= _last_log_index) {
                     // Truncate all the conflicting entries to make local logs
@@ -390,6 +396,8 @@ int LogManager::check_and_resolve_conflict(
             // Release all the entries before the conflicting_index and the rest
             // would be append to _logs_in_memory and _log_storage after this
             // function returns
+
+            // conflicting_index之前的是没有冲突的，说明local中已经有了这些entry，所以需要release
             for (size_t i = 0; i < conflicting_index; ++i) {
                 (*entries)[i]->Release();
             }
