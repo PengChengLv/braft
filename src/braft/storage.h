@@ -177,6 +177,7 @@ public:
     static butil::Status destroy(const std::string& uri);
 };
 
+// 管理term和votedfor
 class RaftMetaStorage {
 public:
     virtual ~RaftMetaStorage() {}

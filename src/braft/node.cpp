@@ -323,6 +323,7 @@ int NodeImpl::init_meta_storage() {
 
     // check term
     const LogId last_log_id = _log_manager->last_log_id();
+    // 仅仅是一种防御策略，但究竟在防御什么呢？
     if (_current_term < last_log_id.term) {
         // Please check when this bad case really happens!
         LOG(WARNING) << "node " << _group_id << ":" << _server_id
@@ -1631,6 +1632,8 @@ void NodeImpl::pre_vote(std::unique_lock<raft_mutex_t>* lck, bool triggered) {
     int64_t old_term = _current_term;
     // get last_log_id outof node mutex
     lck->unlock();
+    // 为什么is_flush设置为true？
+    // 获取最新的log_id，也只有在和选举相关的操作时，才会用这个函数·
     const LogId last_log_id = _log_manager->last_log_id(true);
     lck->lock();
     // pre_vote need defense ABA after unlock&lock
@@ -2105,6 +2108,7 @@ void NodeImpl::unsafe_apply_configuration(const Configuration& new_conf,
     _log_manager->check_and_set_configuration(&_conf);
 }
 
+// 处理其他节点的prevote请求，即预选举
 int NodeImpl::handle_pre_vote_request(const RequestVoteRequest* request,
                                       RequestVoteResponse* response) {
     std::unique_lock<raft_mutex_t> lck(_mutex);
@@ -2146,7 +2150,9 @@ int NodeImpl::handle_pre_vote_request(const RequestVoteRequest* request,
         lck.lock();
         // pre_vote not need ABA check after unlock&lock
 
+        // votable_time是指当前节点可被投票的时间
         int64_t votable_time = _follower_lease.votable_time_from_now();
+        // prevote只比较log_id，只要log_id符合条件，就成功
         bool grantable = (LogId(request->last_log_index(), request->last_log_term())
                         >= last_log_id);
         if (grantable) {
@@ -3510,6 +3516,7 @@ void NodeImpl::VoteBallotCtx::stop_grant_self_timer(NodeImpl* node) {
     }
 }
 
+// version加+1，防止ABA，其他字段清空
 void NodeImpl::VoteBallotCtx::reset(NodeImpl* node) {
     stop_grant_self_timer(node);
     ++_version;
