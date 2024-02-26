@@ -51,7 +51,10 @@ FSMCaller::FSMCaller()
     , _queue_started(false)
 {
 }
-
+// FSMCaller中几个比较有趣的命名：
+// on_xxx 是把操作放到queue中
+// do_xxx 是做从queue中取出的操作
+// FSM 的接口包括数据和角色
 FSMCaller::~FSMCaller() {
     CHECK(_after_shutdown == NULL);
 }
@@ -66,6 +69,7 @@ int FSMCaller::run(void* meta, bthread::TaskIterator<ApplyTask>& iter) {
     int64_t counter = 0;
     size_t  batch_size = FLAGS_raft_fsm_caller_commit_batch;
     for (; iter; ++iter) {
+        // batch不足，接着攒
         if (iter->type == COMMITTED && counter < batch_size) {
             if (iter->committed_index > max_committed_index) {
                 max_committed_index = iter->committed_index;

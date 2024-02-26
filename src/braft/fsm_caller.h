@@ -103,6 +103,7 @@ public:
     virtual SnapshotReader* start() = 0;
 };
 
+// FSMCaller，顾名思义，用来调用fsm的。会启动一个队列，进行apply 操作
 class BAIDU_CACHELINE_ALIGNMENT FSMCaller {
 public:
     FSMCaller();
