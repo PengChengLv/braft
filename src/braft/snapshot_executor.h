@@ -143,6 +143,8 @@ friend class InstallSnapshotDone;
     void report_error(int error_code, const char* fmt, ...);
 
     raft_mutex_t _mutex;
+
+    // 上一次打快照的log信息，在每次快照保存完成后更新
     int64_t _last_snapshot_term;
     int64_t _last_snapshot_index;
     int64_t _term;

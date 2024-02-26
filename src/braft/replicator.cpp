@@ -106,6 +106,7 @@ Replicator::~Replicator() {
     }
 }
 
+// start是一个static，在start函数中新建一个Replicator
 int Replicator::start(const ReplicatorOptions& options, ReplicatorId *id) {
     if (options.log_manager == NULL || options.ballot_box == NULL
             || options.node == NULL) {
@@ -128,6 +129,7 @@ int Replicator::start(const ReplicatorOptions& options, ReplicatorId *id) {
     options.node->AddRef();
     options.replicator_status->AddRef();
     r->_options = options;
+    // 将replicator的_next_index初始化为 last_log_index+1
     r->_next_index = r->_options.log_manager->last_log_index() + 1;
     if (bthread_id_create(&r->_id, r, _on_error) != 0) {
         LOG(ERROR) << "Fail to create bthread_id"
@@ -302,6 +304,7 @@ void Replicator::_on_heartbeat_returned(
         BRAFT_VLOG << ss.str();
 
         // TODO: Should it be VLOG?
+        // heartbeat失败，consecutive_error_times加1
         LOG_IF(WARNING, (r->_consecutive_error_times++) % 10 == 0)
                         << "Group " << r->_options.group_id
                         << " fail to issue RPC to " << r->_options.peer_id
@@ -639,6 +642,7 @@ int Replicator::_prepare_entry(int offset, EntryMeta* em, butil::IOBuf *data) {
 }
 
 void Replicator::_send_entries() {
+    // 等待发送的或者正在发送的log entry超过一定的阈值，就拒绝继续发送
     if (_flying_append_entries_size >= FLAGS_raft_max_entries_size ||
         _append_entries_in_fly.size() >= (size_t)FLAGS_raft_max_parallel_append_entries_rpc_num ||
         _st.st == BLOCKING) {
@@ -653,6 +657,7 @@ void Replicator::_send_entries() {
     std::unique_ptr<brpc::Controller> cntl(new brpc::Controller);
     std::unique_ptr<AppendEntriesRequest> request(new AppendEntriesRequest);
     std::unique_ptr<AppendEntriesResponse> response(new AppendEntriesResponse);
+    // 检查当前log mgr中是否有peer所需的log，如果没有，就安装快照
     if (_fill_common_fields(request.get(), _next_index - 1, false) != 0) {
         _reset_next_index();
         return _install_snapshot();

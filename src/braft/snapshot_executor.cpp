@@ -124,6 +124,7 @@ void SnapshotExecutor::do_snapshot(Closure* done) {
         return;
     }
     // check snapshot install/load
+    // 正在下载快照，则不打快照
     if (_downloading_snapshot.load(butil::memory_order_relaxed)) {
         lck.unlock();
         if (done) {
@@ -134,6 +135,7 @@ void SnapshotExecutor::do_snapshot(Closure* done) {
     }
 
     // check snapshot saving?
+    // 正在保存快照，则不打快照
     if (_saving_snapshot) {
         lck.unlock();
         if (done) {
@@ -149,7 +151,8 @@ void SnapshotExecutor::do_snapshot(Closure* done) {
         // updated. But it's fine since we will do next snapshot saving in a
         // predictable time.
         lck.unlock();
-
+        
+        // ??? 为什么只在这里调用clear_bufferred_logs呢？
         _log_manager->clear_bufferred_logs();
         LOG_IF(INFO, _node != NULL) << "node " << _node->node_id()
             << " the gap between fsm applied index " << saved_fsm_applied_index
@@ -186,6 +189,8 @@ void SnapshotExecutor::do_snapshot(Closure* done) {
     _running_jobs.add_count(1);
 }
 
+// 在保存完快照后回调
+// 更新excutor的状态
 int SnapshotExecutor::on_snapshot_save_done(
     const butil::Status& st, const SnapshotMeta& meta, SnapshotWriter* writer) {
     std::unique_lock<raft_mutex_t> lck(_mutex);
