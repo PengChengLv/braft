@@ -21,6 +21,8 @@ namespace braft {
 Ballot::Ballot() : _quorum(0), _old_quorum(0) {}
 Ballot::~Ballot() {}
 
+
+// 使用新旧conf出事后Ballot，本质上就是初始化peers和quorum，即选举成功所需要的法定数
 int Ballot::init(const Configuration& conf, const Configuration* old_conf) {
     _peers.clear();
     _old_peers.clear();
@@ -45,6 +47,7 @@ int Ballot::init(const Configuration& conf, const Configuration* old_conf) {
     return 0;
 }
 
+// 找到peer，对法定数进行操作
 Ballot::PosHint Ballot::grant(const PeerId& peer, PosHint hint) {
     std::vector<UnfoundPeerId>::iterator iter;
     iter = find_peer(peer, _peers, hint.pos0);

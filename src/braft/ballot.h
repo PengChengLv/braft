@@ -41,6 +41,7 @@ public:
     int init(const Configuration& conf, const Configuration* old_conf);
     PosHint grant(const PeerId& peer, PosHint hint);
     void grant(const PeerId& peer);
+    // 当法定数小于0，则选举成功
     bool granted() const { return _quorum <= 0 && _old_quorum <= 0; }
 private:
     struct UnfoundPeerId {

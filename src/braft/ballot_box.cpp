@@ -137,6 +137,7 @@ int BallotBox::append_pending_task(const Configuration& conf, const Configuratio
 int BallotBox::set_last_committed_index(int64_t last_committed_index) {
     // FIXME: it seems that lock is not necessary here
     std::unique_lock<raft_mutex_t> lck(_mutex);
+    // 这两个字段不为零值，表明当前BallotBox所属的node已经成为leader
     if (_pending_index != 0 || !_pending_meta_queue.empty()) {
         CHECK(last_committed_index < _pending_index)
             << "node changes to leader, pending_index=" << _pending_index
@@ -150,6 +151,7 @@ int BallotBox::set_last_committed_index(int64_t last_committed_index) {
     if (last_committed_index > _last_committed_index.load(butil::memory_order_relaxed)) {
         _last_committed_index.store(last_committed_index, butil::memory_order_relaxed);
         lck.unlock();
+        // 调用状态机的接口，commit
         _waiter->on_committed(last_committed_index);
     }
     return 0;

@@ -2293,6 +2293,8 @@ int NodeImpl::handle_request_vote_request(const RequestVoteRequest* request,
     return 0;
 }
 
+
+// follower侧，日志commit时的回调
 class FollowerStableClosure : public LogManager::StableClosure {
 public:
     FollowerStableClosure(

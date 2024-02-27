@@ -92,11 +92,14 @@ public:
 
 private:
 
+    // 为什么这个FSMCaller被取名为_waiter
     FSMCaller*                                      _waiter;
+    // 回调的队列
     ClosureQueue*                                   _closure_queue;                            
     raft_mutex_t                                    _mutex;
     butil::atomic<int64_t>                          _last_committed_index;
     int64_t                                         _pending_index;
+    // 选票队列
     std::deque<Ballot>                              _pending_meta_queue;
 
 };
