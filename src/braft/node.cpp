@@ -2358,6 +2358,7 @@ private:
         _response->set_success(true);
         _response->set_term(_term);
 
+        // 之所以会出现这个compare，是因为append entry request中会带有commit_index
         const int64_t committed_index =
                 std::min(_request->committed_index(),
                          // ^^^ committed_index is likely less than the
@@ -2404,6 +2405,7 @@ void NodeImpl::handle_append_entries_request(brpc::Controller* cntl,
     // pre set term, to avoid get term in lock
     response->set_term(_current_term);
 
+    // 如果node state不是active，则不进行append entry的操作
     if (!is_active_state(_state)) {
         const int64_t saved_current_term = _current_term;
         const State saved_state = _state;
@@ -2462,7 +2464,8 @@ void NodeImpl::handle_append_entries_request(brpc::Controller* cntl,
         // Requests from cache already updated timestamp
         _follower_lease.renew(_leader_id);
     }
-
+    
+    // 正在install snapshot，不接受append entry的请求
     if (request->entries_size() > 0 &&
             (_snapshot_executor
                 && _snapshot_executor->is_installing_snapshot())) {
@@ -2518,6 +2521,7 @@ void NodeImpl::handle_append_entries_request(brpc::Controller* cntl,
         return;
     }
 
+    // fast path，如果entries为空，只去更新commit
     if (request->entries_size() == 0) {
         response->set_success(true);
         response->set_term(_current_term);
