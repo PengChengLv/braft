@@ -1391,6 +1391,8 @@ void NodeImpl::handle_vote_timeout() {
     }
 }
 
+// 回调，根据peer的resp来判断选举结果
+// 在回调中判断是否当选
 void NodeImpl::handle_request_vote_response(const PeerId& peer_id, const int64_t term,
                                             const int64_t ctx_version,
                                             const RequestVoteResponse& response) {
@@ -1821,6 +1823,7 @@ void NodeImpl::step_down(const int64_t term, bool wakeup_a_candidate,
     }
     
     // reset leader_id 
+    // leader id置空
     PeerId empty_id;
     reset_leader_id(empty_id, status);
 
@@ -1829,10 +1832,12 @@ void NodeImpl::step_down(const int64_t term, bool wakeup_a_candidate,
     // _conf_ctx.reset() will stop replicators of catching up nodes
     _conf_ctx.reset();
     _majority_nodes_readonly = false;
-
+    
+    // 角色变成follower了，apped的entry可以清空了
     clear_append_entries_cache();
 
     if (_snapshot_executor) {
+        // leader发生变化，需要中断正在下载snapshot的行为，避免做无用功
         _snapshot_executor->interrupt_downloading_snapshot(term);
     }
 
@@ -2194,6 +2199,7 @@ int NodeImpl::handle_request_vote_request(const RequestVoteRequest* request,
     }
 
     PeerId candidate_id;
+    // 候选人的id，也就是发起vote的server的id
     if (0 != candidate_id.parse(request->server_id())) {
         LOG(WARNING) << "node " << _group_id << ":" << _server_id
                      << " received RequestVote from " << request->server_id()
@@ -2216,6 +2222,7 @@ int NodeImpl::handle_request_vote_request(const RequestVoteRequest* request,
     int64_t previous_term = _current_term;
     bool rejected_by_lease = false;
     do {
+        // 本地的term 比request的term还要大
         // ignore older term
         if (request->term() < _current_term) {
             // ignore older term
@@ -2256,6 +2263,7 @@ int NodeImpl::handle_request_vote_request(const RequestVoteRequest* request,
         }
 
         // increase current term, change state to follower
+        // 因为requet中的term大于当前的term，所以需要调用step_down
         if (request->term() > _current_term) {
             butil::Status status;
             status.set_error(EHIGHERTERMREQUEST, "Raft node receives higher term "
