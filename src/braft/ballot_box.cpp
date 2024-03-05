@@ -46,6 +46,9 @@ int BallotBox::init(const BallotBoxOptions &options) {
     return 0;
 }
 
+// 该函数在两种情况下会被调用
+// 1. leader 保存日志完成后，回调
+// 2. leader send entries rpc return 回调 
 int BallotBox::commit_at(
         int64_t first_log_index, int64_t last_log_index, const PeerId& peer) {
     // FIXME(chenzhangyi01): The cricital section is unacceptable because it 
@@ -54,9 +57,12 @@ int BallotBox::commit_at(
     if (_pending_index == 0) {
         return EINVAL;
     }
+    // 需要commit的index比 _pending_index还要小，就没有必要再commit了
     if (last_log_index < _pending_index) {
         return 0;
     }
+
+    // 需要commit的index 超过当前pending的index，说明要commit的值偏大了
     if (last_log_index >= _pending_index + (int64_t)_pending_meta_queue.size()) {
         return ERANGE;
     }
@@ -72,6 +78,7 @@ int BallotBox::commit_at(
         }
     }
 
+    // last_commit_index为零，说明没有任何一个可以commit
     if (last_committed_index == 0) {
         return 0;
     }
@@ -95,6 +102,7 @@ int BallotBox::commit_at(
     return 0;
 }
 
+// 主要是将两个queue 清空
 int BallotBox::clear_pending_tasks() {
     std::deque<Ballot> saved_meta;
     {
@@ -118,6 +126,7 @@ int BallotBox::reset_pending_index(int64_t new_pending_index) {
     return 0;
 }
 
+// 添加待commit的task
 int BallotBox::append_pending_task(const Configuration& conf, const Configuration* old_conf,
                                    Closure* closure) {
     Ballot bl;
