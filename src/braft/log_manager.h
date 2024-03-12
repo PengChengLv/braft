@@ -210,7 +210,10 @@ friend class AppendBatcher;
     butil::atomic<bool> _has_error;
     WaitId _next_wait_id;
 
+    // disk_id和applied_id的区别是什么呢？
+    // _disk_id 是最新的已经持久化的log entry对应的log_id
     LogId _disk_id;
+    // 最新的应用到状态机的log entry的对应的log_id
     LogId _applied_id;
     // TODO(chenzhangyi01): replace deque with a thread-safe data structure
     std::deque<LogEntry* /*FIXME*/> _logs_in_memory;

@@ -90,8 +90,12 @@ int LogManager::init(const LogManagerOptions &options) {
     if (ret != 0) {
         return ret;
     }
+    // _log_storage是用户自定义的日志存储模块，taishan在SegmentLogStorage基础上，又加了s3的能力，只有当log文件本存储到boss后，才允许truncate
     _first_log_index = _log_storage->first_log_index();
     _last_log_index = _log_storage->last_log_index();
+
+    // 为什么要把_disk_id初始化为last_log_index呢？
+    // 因为last_log_index是从持久log
     _disk_id.index = _last_log_index;
     // Term will be 0 if the node has no logs, and we will correct the value
     // after snapshot load finish.
