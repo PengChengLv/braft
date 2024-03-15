@@ -1578,6 +1578,7 @@ void NodeImpl::handle_pre_vote_response(const PeerId& peer_id, const int64_t ter
             _pre_vote_ctx.stop_grant_self_timer(this);
         }
     }
+    // 每个pre_vote的回调都会走到这一步，如果pre_vote成功，才会eleect_self
     if (_pre_vote_ctx.granted()) {
         elect_self(&lck);
     }
@@ -1904,6 +1905,7 @@ void NodeImpl::reset_leader_id(const PeerId& new_leader_id,
 // in lock
 void NodeImpl::check_step_down(const int64_t request_term, const PeerId& server_id) {
     butil::Status status;
+    // 一般来说，request_term应该等于_currnet_term
     if (request_term > _current_term) {
         status.set_error(ENEWLEADER, "Raft node receives message from "
                 "new leader with higher term."); 
@@ -2118,6 +2120,7 @@ int NodeImpl::handle_pre_vote_request(const RequestVoteRequest* request,
                                       RequestVoteResponse* response) {
     std::unique_lock<raft_mutex_t> lck(_mutex);
     
+    // 非正常状态的peer不能把票投给别人
     if (!is_active_state(_state)) {
         const int64_t saved_current_term = _current_term;
         const State saved_state = _state;
