@@ -631,6 +631,9 @@ int LogManager::disk_thread(void* meta,
     return 0;
 }
 
+// LogManager::set_snapshot的本质就是根据SnapshotMeta中的信息更新LogManager的信息
+// 比如last_snapshot_id
+// truncate掉无用的log
 void LogManager::set_snapshot(const SnapshotMeta* meta) {
     BRAFT_VLOG << "Set snapshot last_included_index="
               << meta->last_included_index()

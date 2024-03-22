@@ -116,6 +116,7 @@ void SnapshotExecutor::do_snapshot(Closure* done) {
     int64_t saved_last_snapshot_index = _last_snapshot_index;
     int64_t saved_last_snapshot_term = _last_snapshot_term;
     if (_stopped) {
+        // std::unique_lock提供手动解锁的功能，确实在更加合适的位置解锁
         lck.unlock();
         if (done) {
             done->status().set_error(EPERM, "Is stopped");
@@ -125,6 +126,7 @@ void SnapshotExecutor::do_snapshot(Closure* done) {
     }
     // check snapshot install/load
     // 正在下载快照，则不打快照
+    // 没必要吗，快照都没有下载完，打什么快照嘛
     if (_downloading_snapshot.load(butil::memory_order_relaxed)) {
         lck.unlock();
         if (done) {
@@ -153,6 +155,8 @@ void SnapshotExecutor::do_snapshot(Closure* done) {
         lck.unlock();
         
         // ??? 为什么只在这里调用clear_bufferred_logs呢？
+        // clear_bufferd_logs的本质还是调用 truncate_prefix
+        // 而truncate_prefix再set_snapshot时会被调用
         _log_manager->clear_bufferred_logs();
         LOG_IF(INFO, _node != NULL) << "node " << _node->node_id()
             << " the gap between fsm applied index " << saved_fsm_applied_index
@@ -411,14 +415,14 @@ void SnapshotExecutor::install_snapshot(brpc::Controller* cntl,
     int ret = 0;
     brpc::ClosureGuard done_guard(done);
     SnapshotMeta meta = request->meta();
-
+    // 限流操作就是在SnapshotExecutor中实现的
     // check if install_snapshot tasks num exceeds threshold 
     if (_snapshot_throttle && !_snapshot_throttle->add_one_more_task(false)) {
         LOG(WARNING) << "Fail to install snapshot";
         cntl->SetFailed(EBUSY, "Fail to add install_snapshot tasks now");
         return;
     }
-
+    // 就是一个内部struct，DownloadingSnapshot临时存储下载快照所需的信息，函数参数过多？
     std::unique_ptr<DownloadingSnapshot> ds(new DownloadingSnapshot);
     ds->cntl = cntl;
     ds->done = done;
@@ -454,6 +458,7 @@ void SnapshotExecutor::install_snapshot(brpc::Controller* cntl,
     return load_downloading_snapshot(ds.release(), meta);
 }
 
+// 调用状态机on_snapshot_load函数
 void SnapshotExecutor::load_downloading_snapshot(DownloadingSnapshot* ds,
                                                  const SnapshotMeta& meta) {
     std::unique_ptr<DownloadingSnapshot> ds_guard(ds);
@@ -542,6 +547,7 @@ int SnapshotExecutor::register_downloading_snapshot(DownloadingSnapshot* ds) {
         _downloading_snapshot.store(ds, butil::memory_order_relaxed);
         // Now this session has the right to download the snapshot.
         CHECK(!_cur_copier);
+        // 最重要的一个实现类就是LocalSnapshotStorage
         _cur_copier = _snapshot_storage->start_to_copy_from(ds->request->uri());
         if (_cur_copier == NULL) {
             _downloading_snapshot.store(NULL, butil::memory_order_relaxed);
@@ -584,6 +590,7 @@ int SnapshotExecutor::register_downloading_snapshot(DownloadingSnapshot* ds) {
             return -1;
         }
         CHECK(_cur_copier);
+        // 也会去cancel掉正在donwloading，但是不会register自己
         _cur_copier->cancel();
         LOG(WARNING) << "Register failed: an older snapshot is under installing,"
             " cancle downloading.";
@@ -614,6 +621,7 @@ void SnapshotExecutor::interrupt_downloading_snapshot(int64_t new_term) {
         return;
     }
     CHECK(_cur_copier);
+    // 中断正在下载中的snapshot，本质上就是cancel掉copier
     _cur_copier->cancel();
     std::stringstream ss;
     if (_node) {

@@ -71,6 +71,8 @@ private:
     // the num of tasks doing install_snapshot
     int _snapshot_task_num;
     int64_t _last_throughput_check_time_us;
+
+    // 更贴切的解释应该当前cycle的吞吐量
     int64_t _cur_throughput_bytes;
     raft_mutex_t _mutex;
 };

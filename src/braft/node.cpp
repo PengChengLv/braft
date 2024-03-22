@@ -2664,6 +2664,8 @@ void NodeImpl::handle_install_snapshot_request(brpc::Controller* cntl,
         return;
     }
     
+    // leader给follower发起的数据流只有安装快照和append entry
+    // 也只有在这两种情况下，才需要check_step_down
     check_step_down(request->term(), server_id);
 
     if (server_id != _leader_id) {
@@ -2679,6 +2681,7 @@ void NodeImpl::handle_install_snapshot_request(brpc::Controller* cntl,
         response->set_term(request->term() + 1);
         return;
     }
+    // 都要安装快照了，留着cache页没什么意义了
     clear_append_entries_cache();
     lck.unlock();
     LOG(INFO) << "node " << _group_id << ":" << _server_id
@@ -2689,6 +2692,7 @@ void NodeImpl::handle_install_snapshot_request(brpc::Controller* cntl,
               << request->meta().last_included_term()
               << " from " << server_id
               << " when last_log_id=" << _log_manager->last_log_id();
+    // node层直接调用_snapshot_executor进行安装快照的操作
     return _snapshot_executor->install_snapshot(
             cntl, request, response, done_guard.release());
 }

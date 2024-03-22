@@ -75,6 +75,7 @@ int LocalSnapshotMetaTable::save_to_file(FileSystemAdaptor* fs, const std::strin
     return ret;
 }
 
+// 不论reader还是writer都会调用这个函数
 int LocalSnapshotMetaTable::load_from_file(FileSystemAdaptor* fs, const std::string& path) {
     ProtoBufFile pb_file(path, fs);
     LocalSnapshotPbMeta pb_meta;
@@ -950,6 +951,7 @@ void LocalSnapshotCopier::filter() {
 }
 
 void LocalSnapshotCopier::copy_file(const std::string& filename) {
+    // 已经下载过的文件就不再copy了
     if (_writer->get_file_meta(filename, NULL) == 0) {
         LOG(INFO) << "Skipped downloading " << filename
                   << " path: " << _writer->get_path();
@@ -1004,6 +1006,7 @@ void LocalSnapshotCopier::copy_file(const std::string& filename) {
         set_error(EIO, "Fail to add file to writer");
         return;
     }
+    // 为什么每copy一个文件都要持久化meta呢？莫非是为了断点续传？
     if (_writer->sync() != 0) {
         set_error(EIO, "Fail to sync writer");
         return;

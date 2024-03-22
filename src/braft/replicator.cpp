@@ -778,6 +778,7 @@ void Replicator::_wait_more_entries() {
 
 void Replicator::_install_snapshot() {
      NodeImpl *node_impl = _options.node;
+     // witness不按照快照是在Replicator上判断的
     if (node_impl->is_witness()) {
         return _block(butil::gettimeofday_us(), EBUSY);
     }

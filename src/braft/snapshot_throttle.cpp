@@ -55,6 +55,8 @@ size_t ThroughputSnapshotThrottle::throttled_by_throughput(int64_t bytes) {
     std::unique_lock<raft_mutex_t> lck(_mutex);
     if (_cur_throughput_bytes + bytes > limit_per_cycle) {
         // reading another |bytes| excceds the limit
+
+        // 当前的时间间隔还不够一个检查周期
         if (now - _last_throughput_check_time_us <= 
             1 * 1000 * 1000 / _check_cycle) {
             // if time interval is less than or equal to a cycle, read more data
@@ -63,6 +65,8 @@ size_t ThroughputSnapshotThrottle::throttled_by_throughput(int64_t bytes) {
             _cur_throughput_bytes = limit_per_cycle;
         } else {
             // otherwise, read the data in the next cycle.
+
+            // 已经足够一个新cycle了，就用新周期的逻辑
             available_size = bytes > limit_per_cycle ? limit_per_cycle : bytes;
             _cur_throughput_bytes = available_size;
             _last_throughput_check_time_us = 
