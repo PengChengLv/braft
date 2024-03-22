@@ -782,6 +782,9 @@ void Replicator::_install_snapshot() {
     if (node_impl->is_witness()) {
         return _block(butil::gettimeofday_us(), EBUSY);
     }
+
+    // 如果_reader不为空，则说明有正在安装快照
+    // 当rpc return时，_reader被置为null
     if (_reader) {
         // follower's readonly mode change may cause two install_snapshot
         // one possible case is: 
@@ -818,6 +821,7 @@ void Replicator::_install_snapshot() {
         node_impl->Release();
         return;
     } 
+    // addr + reader_id
     std::string uri = _reader->generate_uri_for_copy();
     // NOTICE: If uri is something wrong, retry later instead of reporting error
     // immediately(making raft Node error), as FileSystemAdaptor layer of _reader is 

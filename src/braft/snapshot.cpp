@@ -414,6 +414,7 @@ std::string LocalSnapshotReader::generate_uri_for_copy() {
     }
     if (_reader_id == 0) {
         // TODO: handler referenced files
+        // 在snapshotReader里加了一层dirReader的抽象，意在读取真实的目录
         scoped_refptr<SnapshotFileReader> reader(
                 new SnapshotFileReader(_fs.get(), _path, _snapshot_throttle.get()));
         reader->set_meta_table(_meta_table);
