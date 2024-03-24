@@ -210,6 +210,8 @@ int LocalSnapshotWriter::init() {
             delete dir_reader;
             return EIO;
         }
+
+        // 有实体的文件，但是meta中没有相应的信息，需要把这些文件删除
         while (dir_reader->next()) {
             std::string filename = dir_reader->name();
             if (filename != BRAFT_SNAPSHOT_META_FILE) {
