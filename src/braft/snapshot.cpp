@@ -583,6 +583,7 @@ SnapshotWriter* LocalSnapshotStorage::create(bool from_empty) {
 }
 
 SnapshotCopier* LocalSnapshotStorage::start_to_copy_from(const std::string& uri) {
+    // 这个LocalSnapshotCopier是用来从远端复制过来的
     LocalSnapshotCopier* copier = new LocalSnapshotCopier(_copy_file);
     copier->_storage = this;
     copier->_filter_before_copy_remote = _filter_before_copy_remote;

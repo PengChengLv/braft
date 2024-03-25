@@ -78,6 +78,7 @@ public:
 
     // Append log entry vector and wait until it's stable (NOT COMMITTED!)
     // success return 0, fail return errno
+    // append 一组log entry, stable的意思是什么呢？是持久化吗？
     void append_entries(std::vector<LogEntry*> *entries, StableClosure* done);
 
     // Notify the log manager about the latest snapshot, which indicates the

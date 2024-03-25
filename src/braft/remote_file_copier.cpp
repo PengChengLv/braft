@@ -49,6 +49,7 @@ RemoteFileCopier::RemoteFileCopier()
     , _throttle(NULL)
 {}
 
+// 初始化throttle和channel
 int RemoteFileCopier::init(const std::string& uri, FileSystemAdaptor* fs, 
         SnapshotThrottle* throttle) {
     // Parse uri format: remote://ip:port/reader_id
@@ -244,6 +245,8 @@ void RemoteFileCopier::Session::send_next_rpc() {
     return stub.get_file(&_cntl, &_request, &_response, &_done);
 }
 
+// 在on_rpc_returned中调用 send_next_rpc
+// 在回调函数中完成写文件操作
 void RemoteFileCopier::Session::on_rpc_returned() {
     scoped_refptr<Session> ref_gurad;
     Session* this_ref = this;

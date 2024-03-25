@@ -49,6 +49,7 @@ class LocalSnapshotWriter;
 class RemoteFileCopier {
 public:
     // Stands for a copying session
+    // 表示一次文件的copy会话
     class Session : public butil::RefCountedThreadSafe<Session> {
     public:
         Session();
