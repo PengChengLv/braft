@@ -472,6 +472,7 @@ int LocalSnapshotStorage::init() {
     }
 
     // delete old snapshot
+    // 只保留最新一个快照
     DirReader* dir_reader = _fs->directory_reader(_path);
     if (!dir_reader->is_valid()) {
         LOG(WARNING) << "directory reader failed, maybe NOEXIST or PERMISSION. path: " << _path;
@@ -481,8 +482,10 @@ int LocalSnapshotStorage::init() {
     std::set<int64_t> snapshots;
     while (dir_reader->next()) {
         int64_t index = 0;
+        // 目录名字匹配上的，都是快照
         int match = sscanf(dir_reader->name(), BRAFT_SNAPSHOT_PATTERN, &index);
         if (match == 1) {
+            // index 就是snapshot id
             snapshots.insert(index);
         }
     }
@@ -507,6 +510,7 @@ int LocalSnapshotStorage::init() {
             }
         }
 
+        // 最后一个snapshot的id
         _last_snapshot_index = *snapshots.begin();
         ref(_last_snapshot_index);
     }
@@ -811,6 +815,7 @@ void LocalSnapshotCopier::load_meta_table() {
         set_error(ECANCELED, "%s", berror(ECANCELED));
         return;
     }
+    // 获取源端的snapshot_meta_file的内容
     scoped_refptr<RemoteFileCopier::Session> session
             = _copier.start_to_copy_to_iobuf(BRAFT_SNAPSHOT_META_FILE,
                                             &meta_buf, NULL);
@@ -825,6 +830,7 @@ void LocalSnapshotCopier::load_meta_table() {
         set_error(session->status().error_code(), session->status().error_cstr());
         return;
     }
+    // 根据远端的meta_table的信息，构建meta信息，即这个snapshot有哪些文件
     if (_remote_snapshot._meta_table.load_from_iobuf_as_remote(meta_buf) != 0) {
         LOG(WARNING) << "Bad meta_table format";
         set_error(-1, "Bad meta_table format");

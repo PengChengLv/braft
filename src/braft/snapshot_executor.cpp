@@ -357,6 +357,7 @@ int SnapshotExecutor::init(const SnapshotExecutorOptions& options) {
     _term = options.init_term;
     _usercode_in_pthread = options.usercode_in_pthread;
 
+    // SnapshotExecutor中的_snapshot_storage的构建一共步，create + init
     _snapshot_storage = SnapshotStorage::create(options.uri);
     if (!_snapshot_storage) {
         LOG(ERROR)  << "node " << _node->node_id() 
@@ -385,6 +386,7 @@ int SnapshotExecutor::init(const SnapshotExecutorOptions& options) {
     if (!options.copy_file) {
         tmp->set_copy_file(false);
     }
+    // 想感知这个storage中snapshot，必须构建一个reader，这个reader能够读取meta和文件列表
     SnapshotReader* reader = _snapshot_storage->open();
     if (reader == NULL) {
         return 0;
