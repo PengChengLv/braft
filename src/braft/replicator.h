@@ -79,6 +79,7 @@ friend class Replicator;
     void _run();
 };
 
+// 通俗来讲，Replicator就是一个日志复制器。
 class BAIDU_CACHELINE_ALIGNMENT Replicator {
 public:
     // Called by the leader, otherwise the behavior is undefined

@@ -1189,6 +1189,7 @@ int SegmentLogStorage::load_meta() {
     return 0;
 }
 
+// 打开新的segment，并持久化full的segment
 scoped_refptr<Segment> SegmentLogStorage::open_segment() {
     scoped_refptr<Segment> prev_open_segment;
     {

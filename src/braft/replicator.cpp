@@ -330,6 +330,8 @@ void Replicator::_on_heartbeat_returned(
         butil::Status status;
         status.set_error(EHIGHERTERMRESPONSE, "Leader receives higher term "
                 "heartbeat_response from peer:%s", r->_options.peer_id.to_string().c_str());
+        // 这里只有replicator的destory，那step_down呢？
+        // 其实这里需要destory replicator就可以了，node在收到新leader的install_snapshot或者append entries请求时，自然会check_step_down
         r->_destroy();
         node_impl->increase_term_to(response->term(), status);
         node_impl->Release();
@@ -419,6 +421,7 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
     }
     r->_consecutive_error_times = 0;
     if (!response->success()) {
+        // 和on_heartbeat_rpc_return的逻辑一样的
         if (response->term() > r->_options.term) {
             BRAFT_VLOG << " fail, greater term " << response->term()
                        << " expect term " << r->_options.term;
@@ -588,6 +591,7 @@ void Replicator::_send_empty_entries(bool is_heartbeat) {
         << " prev_log_index " << request->prev_log_index()
         << " last_committed_index " << request->committed_index();
 
+    // 这个Callback一定会被调用吗？还是说如果对端不调用，超时也会调用的
     google::protobuf::Closure* done = brpc::NewCallback(
                 is_heartbeat ? _on_heartbeat_returned : _on_rpc_returned, 
                 _id.value, cntl.get(), request.get(), response.get(),

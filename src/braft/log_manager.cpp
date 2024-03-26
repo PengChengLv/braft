@@ -340,6 +340,7 @@ void LogManager::unsafe_truncate_suffix(const int64_t last_index_kept) {
 int LogManager::check_and_resolve_conflict(
             std::vector<LogEntry*> *entries, StableClosure* done) {
     AsyncClosureGuard done_guard(done);   
+    // 如果entry中的index为0，则就用logManager自己的index进行赋值
     if (entries->front()->id.index == 0) {
         // Node is currently the leader and |entries| are from the user who 
         // don't know the correct indexes the logs should assign to. So we have
@@ -353,6 +354,7 @@ int LogManager::check_and_resolve_conflict(
         // Node is currently a follower and |entries| are from the leader. We 
         // should check and resolve the confliction between the local logs and
         // |entries|
+        // 如果第一条entry的index 大于_last_log_index+1,则说明有gap
         if (entries->front()->id.index > _last_log_index + 1) {
             done->status().set_error(EINVAL, "There's gap between first_index=%" PRId64
                                      " and last_log_index=%" PRId64,
@@ -428,6 +430,8 @@ void LogManager::append_entries(
         return run_closure_in_bthread(done);
     }
     std::unique_lock<raft_mutex_t> lck(_mutex);
+    // check_and_resole_conflict的本质就是检查是否有gap
+    // 以entries为标准，truncate掉conflict的log
     if (!entries->empty() && check_and_resolve_conflict(entries, done) != 0) {
         lck.unlock();
         // release entries
@@ -458,6 +462,7 @@ void LogManager::append_entries(
     wakeup_all_waiter(lck);
 }
 
+// logManager::append_to_stroage -> _log_storage::append_entries -> segment::append
 void LogManager::append_to_storage(std::vector<LogEntry*>* to_append, 
                                    LogId* last_id, IOMetric* metric) {
     if (!_has_error.load(butil::memory_order_relaxed)) {
@@ -513,6 +518,7 @@ public:
     void flush() {
         if (_size > 0) {
             IOMetric metric;
+            // 先append到segment log中, 然后再调用回调的run
             _lm->append_to_storage(&_to_append, _last_id, &metric);
             g_storage_flush_batch_counter << _size;
             for (size_t i = 0; i < _size; ++i) {
@@ -529,7 +535,9 @@ public:
         _size = 0;
         _buffer_size = 0;
     }
+    // append比较简单，就是就是把回调和entries放在自己管理的内存中
     void append(LogManager::StableClosure* done) {
+        // 当个数或者数据大小超过一定的阈值，就会触发flush
         if (_size == _cap || 
                 _buffer_size >= (size_t)FLAGS_raft_max_append_buffer_size) {
             flush();
@@ -543,6 +551,7 @@ public:
     }
 
 private:
+    // 两个数组类型的结构，_storage存储回调，_to_append存储待append的entries
     LogManager::StableClosure** _storage;
     size_t _cap;
     size_t _size;
@@ -552,6 +561,7 @@ private:
     LogManager* _lm;
 };
 
+// disk_thread就是把攒batch的操作放在了appendBatcher中，从而简化整体的逻辑
 int LogManager::disk_thread(void* meta,
                             bthread::TaskIterator<StableClosure*>& iter) {
     if (iter.is_queue_stopped()) {
@@ -576,6 +586,7 @@ int LogManager::disk_thread(void* meta,
             ab.flush();
             int ret = 0;
             do {
+                // 如果这个done里没有entries，就尝试按照其他Closure来处理
                 LastLogIdClosure* llic =
                         dynamic_cast<LastLogIdClosure*>(done);
                 if (llic) {
@@ -639,6 +650,7 @@ void LogManager::set_snapshot(const SnapshotMeta* meta) {
               << meta->last_included_index()
               << " last_included_term=" <<  meta->last_included_term();
     std::unique_lock<raft_mutex_t> lck(_mutex);
+    // 如果meta中last_included_index小于当前的，那也就没有必要set snapshot了
     if (meta->last_included_index() <= _last_snapshot_id.index) {
         return;
     }
@@ -660,6 +672,8 @@ void LogManager::set_snapshot(const SnapshotMeta* meta) {
     const LogId last_but_one_snapshot_id = _last_snapshot_id;
     _last_snapshot_id.index = meta->last_included_index();
     _last_snapshot_id.term = meta->last_included_term();
+
+    // 这个id都打到快照里了，肯定apply了。
     if (_last_snapshot_id > _applied_id) {
         _applied_id = _last_snapshot_id;
     }
