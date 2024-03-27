@@ -402,6 +402,7 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
         return;
     }
 
+    // 为什么这里的处理方式和on_heartbeat_rpc_return不一样呢？
     if (cntl->Failed()) {
         ss << " fail, sleep.";
         BRAFT_VLOG << ss.str();
@@ -474,7 +475,7 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
 
     ss << " success";
     BRAFT_VLOG << ss.str();
-    
+    // 上边已经判断过一次了？  
     if (response->term() != r->_options.term) {
         LOG(ERROR) << "Group " << r->_options.group_id
                    << " fail, response term " << response->term()
@@ -577,6 +578,7 @@ void Replicator::_send_empty_entries(bool is_heartbeat) {
         cntl->set_timeout_ms(*_options.election_timeout_ms / 2);
     } else {
         _st.st = APPENDING_ENTRIES;
+        // 设置这样的index，就是为了表明这个是empty的entry
         _st.first_log_index = _next_index;
         _st.last_log_index = _next_index - 1;
         CHECK(_append_entries_in_fly.empty());
