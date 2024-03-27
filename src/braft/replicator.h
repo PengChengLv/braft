@@ -239,7 +239,10 @@ private:
         FlyingAppendEntriesRpc(int64_t index, int size, brpc::CallId id)
             : log_index(index), entries_size(size), call_id(id) {}
     };
-    
+    // 这条channel一共三个用处
+    // 1. 发送AppendEntriesRequest
+    // 2. 发送InstallSnapshotRequest
+    // 3. 发送TimeoutNowRequest
     brpc::Channel _sending_channel;
     int64_t _next_index;
     int64_t _flying_append_entries_size;

@@ -116,6 +116,8 @@ int Replicator::start(const ReplicatorOptions& options, ReplicatorId *id) {
     Replicator* r = new Replicator();
     brpc::ChannelOptions channel_opt;
     channel_opt.connect_timeout_ms = FLAGS_raft_rpc_channel_connect_timeout_ms;
+    // 发送正常的entries时不需要设置超时
+    // 发送心跳时，通过controller进行override
     channel_opt.timeout_ms = -1; // We don't need RPC timeout
     if (r->_sending_channel.Init(options.peer_id.addr, &channel_opt) != 0) {
         LOG(ERROR) << "Fail to init sending channel"
@@ -594,6 +596,7 @@ void Replicator::_send_empty_entries(bool is_heartbeat) {
         << " last_committed_index " << request->committed_index();
 
     // 这个Callback一定会被调用吗？还是说如果对端不调用，超时也会调用的
+    // 不是超时调用，如果网络有问题，brpc层面会调用
     google::protobuf::Closure* done = brpc::NewCallback(
                 is_heartbeat ? _on_heartbeat_returned : _on_rpc_returned, 
                 _id.value, cntl.get(), request.get(), response.get(),
