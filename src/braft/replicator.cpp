@@ -956,6 +956,9 @@ void Replicator::_on_install_snapshot_returned(
     return r->_send_entries();
 }
 
+// 为什么需要 _notify_on_caught_up 呢？
+// run closure
+// install_snapshot / send_entry return的话都会调用这个函数
 void Replicator::_notify_on_caught_up(int error_code, bool before_destroy) {
     if (_catchup_closure == NULL) {
         return;

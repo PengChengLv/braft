@@ -747,6 +747,7 @@ private:
     int64_t _version;
 };
 
+// on_caughtup is called when a peer catches up with the leader
 void NodeImpl::on_caughtup(const PeerId& peer, int64_t term,
                            int64_t version, const butil::Status& st) {
     BAIDU_SCOPED_LOCK(_mutex);
@@ -767,6 +768,7 @@ void NodeImpl::on_caughtup(const PeerId& peer, int64_t term,
     }
 
     // Retry if this peer is still alive
+    // 如果上一把catchup超时，就再来一波
     if (st.error_code() == ETIMEDOUT 
             && (butil::monotonic_time_ms()
                 - _replicator_group.last_rpc_send_timestamp(peer))
