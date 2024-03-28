@@ -326,6 +326,7 @@ void Replicator::_on_heartbeat_returned(
         // Acquire a reference of Node here in case that Node is detroyed
         // after _notify_on_caught_up.
         node_impl->AddRef();
+        // ??? 这里为啥要_notify_no_caught_up
         r->_notify_on_caught_up(EPERM, true);
         LOG(INFO) << "Replicator=" << dummy_id << " is going to quit"
                   << ", group " << r->_options.group_id;
@@ -597,6 +598,9 @@ void Replicator::_send_empty_entries(bool is_heartbeat) {
 
     // 这个Callback一定会被调用吗？还是说如果对端不调用，超时也会调用的
     // 不是超时调用，如果网络有问题，brpc层面会调用
+
+    // 这里搞一个_id 传进来的目的是什么呢？
+    // 因为回调的时候需要根据_id获取replicator
     google::protobuf::Closure* done = brpc::NewCallback(
                 is_heartbeat ? _on_heartbeat_returned : _on_rpc_returned, 
                 _id.value, cntl.get(), request.get(), response.get(),
@@ -986,9 +990,11 @@ void Replicator::_notify_on_caught_up(int error_code, bool before_destroy) {
 
 void Replicator::_on_timedout(void* arg) {
     bthread_id_t id = { (uint64_t)arg };
+    // 触发on_error的调用
     bthread_id_error(id, ETIMEDOUT);
 }
 
+// heartbeat本质上就是有timeout的err来触发的
 void Replicator::_start_heartbeat_timer(long start_time_us) {
     const timespec due_time = butil::milliseconds_from(
             butil::microseconds_to_timespec(start_time_us), 
