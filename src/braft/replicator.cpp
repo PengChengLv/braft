@@ -203,6 +203,7 @@ void Replicator::wait_for_caught_up(ReplicatorId id,
         return;
     }
     if (due_time != NULL) {
+        // 增加on_catch_up_timeout timer
         done->_has_timer = true;
         if (bthread_timer_add(&done->_timer,
                               *due_time,

@@ -247,6 +247,7 @@ private:
     int64_t _next_index;
     int64_t _flying_append_entries_size;
     int _consecutive_error_times;
+    // _has_succeeded 意味这个和node成功通信过一次了
     bool _has_succeeded;
     int64_t _timeout_now_index;
     int64_t _heartbeat_counter;
