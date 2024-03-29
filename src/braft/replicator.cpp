@@ -133,6 +133,7 @@ int Replicator::start(const ReplicatorOptions& options, ReplicatorId *id) {
     r->_options = options;
     // 将replicator的_next_index初始化为 last_log_index+1
     r->_next_index = r->_options.log_manager->last_log_index() + 1;
+    // 绑定错误处理函数
     if (bthread_id_create(&r->_id, r, _on_error) != 0) {
         LOG(ERROR) << "Fail to create bthread_id"
                    << ", group " << options.group_id;
@@ -142,6 +143,7 @@ int Replicator::start(const ReplicatorOptions& options, ReplicatorId *id) {
 
 
     bthread_id_lock(r->_id, NULL);
+    // 通过指针把id返回出去
     if (id) {
         *id = r->_id.value;
     }
@@ -149,6 +151,8 @@ int Replicator::start(const ReplicatorOptions& options, ReplicatorId *id) {
               << ", group " << r->_options.group_id;
     r->_catchup_closure = NULL;
     r->_update_last_rpc_send_timestamp(butil::monotonic_time_ms());
+
+    // 启动心跳计时器，从此时开始计时，再过_options.heartbeat_timeout_ms，就会触发心跳
     r->_start_heartbeat_timer(butil::gettimeofday_us());
     // Note: r->_id is unlock in _send_empty_entries, don't touch r ever after
     r->_send_empty_entries(false);
@@ -308,6 +312,8 @@ void Replicator::_on_heartbeat_returned(
 
         // TODO: Should it be VLOG?
         // heartbeat失败，consecutive_error_times加1
+
+        // 日志采样
         LOG_IF(WARNING, (r->_consecutive_error_times++) % 10 == 0)
                         << "Group " << r->_options.group_id
                         << " fail to issue RPC to " << r->_options.peer_id
@@ -317,7 +323,10 @@ void Replicator::_on_heartbeat_returned(
         CHECK_EQ(0, bthread_id_unlock(dummy_id)) << "Fail to unlock " << dummy_id;
         return;
     }
+    // 一单成功，consecutive_error_times重置为0
     r->_consecutive_error_times = 0;
+    
+    // 如果response的term大于当前的term，说明leader已经过期，replicator直接destory就可以了
     if (response->term() > r->_options.term) {
         ss << " fail, greater term " << response->term()
            << " expect term " << r->_options.term;
@@ -328,6 +337,7 @@ void Replicator::_on_heartbeat_returned(
         // after _notify_on_caught_up.
         node_impl->AddRef();
         // ??? 这里为啥要_notify_no_caught_up
+        // 本质上就是为了调用一个回调
         r->_notify_on_caught_up(EPERM, true);
         LOG(INFO) << "Replicator=" << dummy_id << " is going to quit"
                   << ", group " << r->_options.group_id;
@@ -345,6 +355,8 @@ void Replicator::_on_heartbeat_returned(
     bool readonly = response->has_readonly() && response->readonly();
     BRAFT_VLOG << ss.str() << " readonly " << readonly;
     r->_update_last_rpc_send_timestamp(rpc_send_time);
+    // 开启下一波的心跳
+    // 除了replicator start时，会调用 _start_heartbea_timer，只有在on_heartbeat_return里调用，因为发送心态的rpc会设置超时时间，所以_start_heartbeat_timer一定会被调用
     r->_start_heartbeat_timer(start_time_us);
     NodeImpl* node_impl = NULL;
     // Check if readonly config changed
@@ -390,6 +402,8 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
     int64_t min_flying_index = r->_min_flying_index();
     CHECK_GT(min_flying_index, 0);
 
+    // 因为rpc_response返回时，可能前边的没有返回，也会被确认
+    // 后续再返回的response就会被ignore掉
     for (std::deque<FlyingAppendEntriesRpc>::iterator rpc_it = r->_append_entries_in_fly.begin();
         rpc_it != r->_append_entries_in_fly.end(); ++rpc_it) {
         if (rpc_it->log_index > rpc_first_index) {
@@ -407,6 +421,7 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
     }
 
     // 为什么这里的处理方式和on_heartbeat_rpc_return不一样呢？
+    // 当要不一样
     if (cntl->Failed()) {
         ss << " fail, sleep.";
         BRAFT_VLOG << ss.str();
@@ -422,6 +437,8 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
         // it comes back or be removed
         // dummy_id is unlock in block
         r->_reset_next_index();
+        // rpc失败，可能是网络问题，可能是follower挂了，replicator需要block一段时间
+        // 当block超时后，在continue sending
         return r->_block(start_time_us, cntl->ErrorCode());
     }
     r->_consecutive_error_times = 0;
@@ -452,6 +469,7 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
         r->_update_last_rpc_send_timestamp(rpc_send_time);
         // prev_log_index and prev_log_term doesn't match
         r->_reset_next_index();
+        // 这个peer的log比较少
         if (response->last_log_index() + 1 < r->_next_index) {
             BRAFT_VLOG << "Group " << r->_options.group_id
                        << " last_log_index at peer=" << r->_options.peer_id 
@@ -464,6 +482,7 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
             if (BAIDU_LIKELY(r->_next_index > 1)) {
                 BRAFT_VLOG << "Group " << r->_options.group_id 
                            << " log_index=" << r->_next_index << " mismatch";
+                // _next_index 减1，然后再_send_empty_entries，是leader的log和该peer的log一致
                 --r->_next_index;
             } else {
                 LOG(ERROR) << "Group " << r->_options.group_id 
@@ -569,6 +588,7 @@ void Replicator::_send_empty_entries(bool is_heartbeat) {
     std::unique_ptr<brpc::Controller> cntl(new brpc::Controller);
     std::unique_ptr<AppendEntriesRequest> request(new AppendEntriesRequest);
     std::unique_ptr<AppendEntriesResponse> response(new AppendEntriesResponse);
+    // 第一次send entry，这_fill_common_fields都会返回成功
     if (_fill_common_fields(
                 request.get(), _next_index - 1, is_heartbeat) != 0) {
         CHECK(!is_heartbeat);

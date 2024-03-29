@@ -2491,6 +2491,8 @@ void NodeImpl::handle_append_entries_request(brpc::Controller* cntl,
     const int64_t prev_log_index = request->prev_log_index();
     const int64_t prev_log_term = request->prev_log_term();
     const int64_t local_prev_log_term = _log_manager->get_term(prev_log_index);
+
+    // 只有local_prev_log_term 和 prev_log_term相同时，才会调用log_manager的append_entry，才会truncate 本地的log
     if (local_prev_log_term != prev_log_term) {
         int64_t last_index = _log_manager->last_log_index();
         int64_t saved_term = request->term();
