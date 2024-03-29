@@ -516,6 +516,7 @@ void Replicator::_on_rpc_returned(ReplicatorId id, brpc::Controller* cntl,
                                     << rpc_last_log_index
                                     << "] to peer " << r->_options.peer_id;
     if (entries_size > 0) {
+        // 尝试去commit，但是只有达成多数才能真正的commit
         r->_options.ballot_box->commit_at(
                 min_flying_index, rpc_last_log_index,
                 r->_options.peer_id);
