@@ -224,6 +224,7 @@ int SnapshotExecutor::on_snapshot_save_done(
         }
     }
 
+    // 在_snapshot_storage close把新生成的临时快照转正，并且删除旧的快照
     if (_snapshot_storage->close(writer) != 0) {
         ret = EIO;
         LOG(WARNING) << "node " << _node->node_id() << " fail to close writer";

@@ -126,6 +126,7 @@ int LogManager::stop_disk_thread() {
     return bthread::execution_queue_join(_disk_queue);
 }
 
+// 把入参 id前的log clear掉
 void LogManager::clear_memory_logs(const LogId& id) {
     LogEntry* entries_to_clear[256];
     size_t nentries = 0;
@@ -143,6 +144,7 @@ void LogManager::clear_memory_logs(const LogId& id) {
                 _logs_in_memory.pop_front();
             }
         }  // out of _mutex
+        // 不在持有锁的时候进行release
         for (size_t i = 0; i < nentries; ++i) {
             entries_to_clear[i]->Release();
         }
@@ -175,6 +177,7 @@ private:
     LogId _last_log_id;
 };
 
+// 为什么last_log_index需要搞一个LastLogIdClosure呢？
 int64_t LogManager::last_log_index(bool is_flush) {
     std::unique_lock<raft_mutex_t> lck(_mutex);
     if (!is_flush) {
