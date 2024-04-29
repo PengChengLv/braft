@@ -107,6 +107,7 @@ Replicator::~Replicator() {
 }
 
 // start是一个static，在start函数中新建一个Replicator
+// start新建Replicator最关键的操作就是初始化channel，将来发心跳和entry都会用到这个channel
 int Replicator::start(const ReplicatorOptions& options, ReplicatorId *id) {
     if (options.log_manager == NULL || options.ballot_box == NULL
             || options.node == NULL) {
@@ -159,6 +160,7 @@ int Replicator::start(const ReplicatorOptions& options, ReplicatorId *id) {
     return 0;
 }
 
+// stop是一个static函数，通过replicator id来stop一个replicator
 int Replicator::stop(ReplicatorId id) {
     bthread_id_t dummy_id = { id };
     Replicator* r = NULL;
@@ -811,6 +813,7 @@ void Replicator::_wait_more_entries() {
     CHECK_EQ(0, bthread_id_unlock(_id)) << "Fail to unlock " << _id;
 }
 
+// 把按照快照所需要的信息发给follower
 void Replicator::_install_snapshot() {
      NodeImpl *node_impl = _options.node;
      // witness不按照快照是在Replicator上判断的

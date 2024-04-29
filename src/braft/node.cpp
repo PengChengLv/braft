@@ -769,6 +769,7 @@ void NodeImpl::on_caughtup(const PeerId& peer, int64_t term,
 
     // Retry if this peer is still alive
     // 如果上一把catchup超时，就再来一波
+    // 上一把catchup超时，并且对应的peer还是active的，就在catchup一把
     if (st.error_code() == ETIMEDOUT 
             && (butil::monotonic_time_ms()
                 - _replicator_group.last_rpc_send_timestamp(peer))
